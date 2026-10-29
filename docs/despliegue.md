@@ -33,6 +33,12 @@ Variables principales (todas en `.env.example`, con comentarios):
 | `SINAPSIS_OCR_MAX_SIMULTANEOS` | 1 | Lecturas de texto al mismo tiempo. |
 | `OPENROUTER_API_KEY`, `OPENROUTER_MODELO`, `OPENROUTER_MODELO_ALTERNO` | vacío | Respaldo con IA. Vacío = desactivado. |
 | `SINAPSIS_IA_LIMITE_DIARIO` | 50 | Consultas de IA por día. |
+| `SINAPSIS_NOTIFICACIONES` | true | Notificaciones push. Las claves VAPID se crean solas en `datos/`. |
+| `SINAPSIS_HORA_NOTIFICACION` | 7 | Hora del resumen diario (zona `America/Bogota`, fijada en la imagen). |
+| `SINAPSIS_VAPID_CONTACTO` | `https://neurologico.org` | Contacto que reciben los servicios push (`mailto:` o `https:`). Pon el correo de quien administra el servidor. |
+
+La instalación como app y las notificaciones **requieren HTTPS** (en el computador local,
+`http://localhost` también sirve).
 
 ## 3. Levantar
 ```bash

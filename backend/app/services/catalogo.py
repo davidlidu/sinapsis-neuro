@@ -9,12 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Alias, Lote, Movimiento, Producto
+from . import secciones
 from .texto import normalizar, normalizar_codigo
 
 COLUMNAS = [
     # (nombre, obligatoria, descripción para la hoja de instrucciones)
     ("nombre", True, "Nombre tal como aparece impreso en el producto."),
-    ("referencia", True, "Código interno o del proveedor. Único por producto."),
+    ("referencia", True, "Código de farmacia (el del sistema interno). Único por producto."),
     ("codigo_barras", False, "Código de barras de fábrica, si lo tiene. Escríbalo como texto."),
     ("metodo", False, "Cómo se identifica: barras, nombre o qr. Si se deja vacío se deduce."),
     ("alias", False, "Otros nombres o abreviaturas, separados por coma."),
@@ -23,8 +24,18 @@ COLUMNAS = [
     ("cantidad_actual", True, "Inventario de arranque (número entero)."),
     ("fecha_vencimiento", False, "Vencimiento del inventario de arranque (AAAA-MM-DD)."),
     ("lote", False, "Lote del inventario de arranque."),
+    ("seccion", False, "Sección del laboratorio o servicio (ej. Microbiología)."),
+    ("pruebas_por_unidad", False, "Solo para reactivos que se gastan por pruebas: cuántas trae cada kit. "
+                                  "Si se llena, stock_minimo y cantidad_actual van en PRUEBAS."),
+    ("activo", False, "si o no. Con no, el producto deja de aparecer y no se sugiere en pedidos."),
 ]
 METODOS = {"barras", "nombre", "qr"}
+# Nombre visible en el Excel y otros nombres aceptados al leerlo (versiones anteriores usaban "referencia").
+ENCABEZADOS = {"referencia": ("cod_farmacia", "codigo_farmacia", "referencia")}
+
+
+def _titulo(col: str) -> str:
+    return ENCABEZADOS.get(col, (col,))[0]
 
 
 def generar_plantilla() -> bytes:
@@ -34,14 +45,14 @@ def generar_plantilla() -> bytes:
     verde = PatternFill("solid", fgColor="7ED957")
     gris = PatternFill("solid", fgColor="E5ECF1")
     for i, (col, obligatoria, _) in enumerate(COLUMNAS, start=1):
-        celda = hoja.cell(row=1, column=i, value=col)
+        celda = hoja.cell(row=1, column=i, value=_titulo(col))
         celda.font = Font(bold=True, color="051923")
         celda.fill = verde if obligatoria else gris
         hoja.column_dimensions[celda.column_letter].width = max(16, len(col) + 4)
     hoja.append(["Acetaminofén", "MED-0001", "7702001000011", "barras", "Acetaminofen, Paracetamol",
-                 "500 mg x 100 tab", 20, 35, "2027-06-30", "L2406A"])
-    hoja.append(["Jeringa desechable", "INS-0002", "", "qr", "", "5 ml", 50, 120, "", ""])
-    for col in ("B", "C"):  # referencias y códigos como texto para que Excel no los altere
+                 "500 mg x 100 tab", 20, 35, "2027-06-30", "L2406A", "Farmacia", "", "si"])
+    hoja.append(["Jeringa desechable", "INS-0002", "", "qr", "", "5 ml", 50, 120, "", "", "Insumos", "", "si"])
+    for col in ("B", "C"):  # códigos de farmacia y de barras como texto para que Excel no los altere
         for fila in range(2, 2001):
             hoja[f"{col}{fila}"].number_format = "@"
     dv = DataValidation(type="list", formula1='"barras,nombre,qr"', allow_blank=True)
@@ -52,7 +63,7 @@ def generar_plantilla() -> bytes:
     ayuda = wb.create_sheet("Instrucciones")
     ayuda.append(["Columna", "Obligatoria", "Qué va"])
     for col, obligatoria, desc in COLUMNAS:
-        ayuda.append([col, "Sí" if obligatoria else "No", desc])
+        ayuda.append([_titulo(col), "Sí" if obligatoria else "No", desc])
     ayuda.append([])
     ayuda.append(["Las filas 2 y 3 de la hoja Catalogo son ejemplos: bórrelas antes de cargar."])
     for c in ("A", "B", "C"):
@@ -89,6 +100,11 @@ def _fecha(valor) -> date | None | str:
     return "error"
 
 
+def _clave(encabezado) -> str:
+    # Se comparan encabezados normalizados de ambos lados (normalizar abrevia "unidad" → "und", etc.).
+    return normalizar(str(encabezado)).replace(" ", "_")
+
+
 def leer_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
     """Lee y valida el archivo. Devuelve (filas válidas, errores)."""
     try:
@@ -98,14 +114,17 @@ def leer_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
     hoja = wb["Catalogo"] if "Catalogo" in wb.sheetnames else wb.worksheets[0]
     filas = hoja.iter_rows(values_only=True)
     try:
-        encabezado = [normalizar(c).replace(" ", "_") if c else "" for c in next(filas)]
+        encabezado = [_clave(c) if c else "" for c in next(filas)]
     except StopIteration:
         return [], ["El archivo está vacío."]
 
-    faltan = [c for c, oblig, _ in COLUMNAS if oblig and c not in encabezado]
+    def posicion(col):
+        return next((encabezado.index(_clave(n)) for n in ENCABEZADOS.get(col, (col,)) if _clave(n) in encabezado), None)
+
+    pos = {c: posicion(c) for c, _, _ in COLUMNAS if posicion(c) is not None}
+    faltan = [_titulo(c) for c, oblig, _ in COLUMNAS if oblig and c not in pos]
     if faltan:
         return [], [f"Faltan columnas obligatorias: {', '.join(faltan)}. Use la plantilla oficial."]
-    pos = {c: encabezado.index(c) for c, _, _ in COLUMNAS if c in encabezado}
 
     validas, errores = [], []
     refs, codigos = {}, {}
@@ -128,9 +147,9 @@ def leer_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
         if not nombre:
             problemas.append("nombre vacío")
         if not ref:
-            problemas.append("referencia vacía")
+            problemas.append("cód. farmacia vacío")
         elif ref in refs:
-            problemas.append(f"referencia repetida (también en la fila {refs[ref]})")
+            problemas.append(f"cód. farmacia repetido (también en la fila {refs[ref]})")
         if codigo and codigo in codigos:
             problemas.append(f"código de barras repetido (también en la fila {codigos[codigo]})")
         if stock_min is None:
@@ -141,6 +160,12 @@ def leer_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
             problemas.append("metodo debe ser barras, nombre o qr")
         if metodo == "barras" and not codigo:
             problemas.append("metodo es barras pero no hay código de barras")
+        ppu = _entero(v("pruebas_por_unidad"))
+        if str(v("pruebas_por_unidad") or "").strip() and not ppu:
+            problemas.append("pruebas_por_unidad debe ser un número entero mayor que 0")
+        activo_txt = normalizar(str(v("activo") or "si"))
+        if activo_txt not in ("si", "no", "1", "0", "true", "false"):
+            problemas.append("activo debe ser si o no")
         if vence == "error":
             problemas.append("fecha_vencimiento no se entiende (use AAAA-MM-DD)")
 
@@ -157,14 +182,16 @@ def leer_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
             "presentacion": str(v("presentacion") or "").strip(),
             "stock_minimo": stock_min, "cantidad_actual": cantidad,
             "fecha_vencimiento": vence, "lote": str(v("lote") or "").strip(),
+            "seccion": str(v("seccion") or "").strip(), "pruebas_por_unidad": ppu or None,
+            "activo": activo_txt in ("si", "1", "true"),
         })
     return validas, errores
 
 
 def aplicar_carga(db: Session, filas: list[dict], usuario: str) -> dict:
-    """Crea o actualiza productos por referencia. Todo en una sola transacción."""
+    """Crea o actualiza productos por código de farmacia. Todo en una sola transacción."""
     creados = actualizados = 0
-    # Conflictos de código de barras contra productos ya existentes con otra referencia.
+    # Conflictos de código de barras contra productos ya existentes con otro código de farmacia.
     conflictos = []
     for f in filas:
         if f["codigo_barras"]:
@@ -186,6 +213,9 @@ def aplicar_carga(db: Session, filas: list[dict], usuario: str) -> dict:
         p.metodo_identificacion = f["metodo"]
         p.presentacion = f["presentacion"]
         p.stock_minimo = f["stock_minimo"]
+        p.seccion, p.activo = secciones.asegurar(db, f["seccion"]), f["activo"]
+        if nuevo or not p.cantidad_actual:  # con existencias, la conversión la decide un conteo
+            p.pruebas_por_unidad = f["pruebas_por_unidad"]
         db.flush()
         if not p.codigo_qr:
             p.codigo_qr = f"SNP-{p.id:06d}"
@@ -197,8 +227,15 @@ def aplicar_carga(db: Session, filas: list[dict], usuario: str) -> dict:
                 p.alias.append(Alias(texto=texto, texto_normalizado=tn, origen="catalogo"))
                 existentes.add(tn)
 
+        # La existencia de arranque se fija al crear el producto o, en una recarga, si sigue en 0
+        # y nadie la ha tocado (así se puede cargar el catálogo primero y las cantidades después).
+        sin_tocar = nuevo or (p.cantidad_actual == 0 and not db.scalar(
+            select(Movimiento.id).where(Movimiento.producto_id == p.id, Movimiento.tipo != "carga_inicial").limit(1)))
         if nuevo:
             creados += 1
+        else:
+            actualizados += 1
+        if sin_tocar and (nuevo or f["cantidad_actual"] > 0):
             p.cantidad_actual = f["cantidad_actual"]
             db.add(Movimiento(producto_id=p.id, tipo="carga_inicial", cantidad_antes=0,
                               cantidad_despues=f["cantidad_actual"], detalle="Carga desde Excel",
@@ -207,7 +244,5 @@ def aplicar_carga(db: Session, filas: list[dict], usuario: str) -> dict:
                 db.add(Lote(producto_id=p.id, fecha_ingreso=date.today(),
                             fecha_vencimiento=f["fecha_vencimiento"], lote=f["lote"],
                             cantidad=f["cantidad_actual"], origen="carga_inicial", usuario=usuario))
-        else:
-            actualizados += 1  # en una recarga no se pisa el inventario ya registrado
     db.commit()
     return {"creados": creados, "actualizados": actualizados, "errores": []}

@@ -55,7 +55,7 @@ def test_carga_valida_errores(c):
     r = c.post("/api/productos/carga?aplicar=true", files={"archivo": ("c.xlsx", malo)}).json()
     assert not r["aplicado"]
     assert any("Fila 2" in e and "nombre vacío" in e for e in r["errores"])
-    assert any("Fila 4" in e and "referencia repetida" in e for e in r["errores"])
+    assert any("Fila 4" in e and "cód. farmacia repetido" in e for e in r["errores"])
 
 
 def test_flujo_completo(c):
@@ -94,11 +94,17 @@ def test_flujo_completo(c):
     assert len(alertas["vencidos"]) == 1 and len(alertas["por_vencer"]) == 1
     assert {p["referencia"] for p in alertas["bajo_minimo"]} == {"MED-0002", "MED-0004"}
 
-    # Pedido sugerido por stock mínimo, ajustado a mano
+    # Pedido sugerido: bajo el mínimo, en cero o con lotes que vencen en los próximos 10 días (configurable)
     ped = c.post("/api/pedidos").json()
     sug = {i["producto"]["referencia"]: i["cantidad_sugerida"] for i in ped["items"]}
-    assert sug == {"MED-0002": 4, "MED-0004": 15}
+    motivos = {i["producto"]["referencia"]: i["motivo"] for i in ped["items"]}
+    assert sug == {"MED-0001": 35, "MED-0002": 4, "MED-0004": 15}
+    assert motivos["MED-0001"] == "Vence en 10 días" and motivos["MED-0004"] == "En cero"
+    assert motivos["MED-0002"] == "Bajo el mínimo · Vencido"
     assert c.post("/api/pedidos").status_code == 400  # un solo borrador a la vez
+    acet = next(i for i in ped["items"] if i["producto"]["referencia"] == "MED-0001")
+    ped = c.put(f"/api/pedidos/{ped['id']}/items", json={"producto_id": acet["producto_id"], "cantidad": 0}).json()
+    assert ped["total_items"] == 2  # se puede quitar lo que no se necesita
     ped = c.put(f"/api/pedidos/{ped['id']}/items", json={"producto_id": jeringa["id"], "cantidad": 30}).json()
     assert ped["total_items"] == 3
 
@@ -159,3 +165,118 @@ def test_ia_desactivada(c):
     assert c.get("/api/identificar/ia/estado").json()["habilitada"] is False
     r = c.post("/api/identificar/ia", files={"foto": ("f.jpg", b"x", "image/jpeg")})
     assert r.status_code == 503
+
+
+def test_reactivos_por_pruebas(c):
+    """Kit de 750 pruebas: ingresos en kits, existencias y mínimo en pruebas, pedido redondeado a kits."""
+    from app.models import Producto
+    from app.services.pedidos import cantidad_sugerida
+
+    archivo = _excel([["ALB2 X 750 PRUEBAS", "LAB-ALB2", "", "", "", "Kit", 150, 0, "", "", "Química", 750, "si"],
+                      ["CALIBRADOR F.A.S.", "LAB-CFAS", "", "", "", "Kit", 0, 0, "", "", "Química", "", "si"],
+                      ["FERRITIN VIEJA", "LAB-FERR", "", "", "", "Kit", 0, 0, "", "", "Inmunología", "", "no"]])
+    r = c.post("/api/productos/carga?aplicar=true", files={"archivo": ("lab.xlsx", archivo)}).json()
+    assert r["aplicado"] and r["creados"] == 3, r
+    alb = c.get("/api/productos?q=LAB-ALB2").json()[0]
+    assert alb["pruebas_por_unidad"] == 750 and alb["seccion"] == "Química" and alb["bajo_minimo"]
+    assert not c.get("/api/productos?q=LAB-FERR").json()  # inactivo: no aparece
+
+    # Ingreso de 2 kits = 1.500 pruebas; el lote también queda en pruebas.
+    r = c.post("/api/inventario/ingresos", json={"producto_id": alb["id"], "cantidad": 2}).json()
+    assert r["producto"]["cantidad_actual"] == 1500 and r["lote"]["cantidad"] == 1500
+    # Conteo en pruebas: quedan 120, bajo el umbral de 150 → se piden kits enteros.
+    p = c.post(f"/api/inventario/conteo/{alb['id']}", json={"cantidad": 120}).json()
+    assert p["bajo_minimo"]
+    assert cantidad_sugerida(Producto(stock_minimo=150, cantidad_actual=120, pruebas_por_unidad=750)) == 1
+    assert cantidad_sugerida(Producto(stock_minimo=10, cantidad_actual=4)) == 6
+    # Con existencias, no se deja cambiar las pruebas por unidad sin un conteo en 0.
+    datos = {"nombre": alb["nombre"], "referencia": alb["referencia"], "pruebas_por_unidad": 500}
+    assert c.put(f"/api/productos/{alb['id']}", json=datos).status_code == 400
+
+
+def test_recarga_fija_existencia_inicial(c):
+    """El catálogo se carga en 0 y las cantidades llegan después en otro Excel."""
+    c.post("/api/productos/carga?aplicar=true", files={"archivo": ("a.xlsx", _excel([["TIRAS DE ORINA", "LAB-TIRAS", "", "", "", "Unidad", 2, 0, "", ""]]))})
+    r = c.post("/api/productos/carga?aplicar=true", files={"archivo": ("b.xlsx", _excel([["TIRAS DE ORINA", "LAB-TIRAS", "", "", "", "Unidad", 2, 5, "2027-01-31", "L1"]]))}).json()
+    assert r["actualizados"] == 1
+    p = c.get("/api/productos?q=LAB-TIRAS").json()[0]
+    assert p["cantidad_actual"] == 5
+    # Ya con movimientos, una nueva recarga no pisa la existencia.
+    c.post("/api/productos/carga?aplicar=true", files={"archivo": ("c.xlsx", _excel([["TIRAS DE ORINA", "LAB-TIRAS", "", "", "", "Unidad", 2, 99, "", ""]]))})
+    assert c.get("/api/productos?q=LAB-TIRAS").json()[0]["cantidad_actual"] == 5
+
+
+def test_notificaciones(c):
+    clave = c.get("/api/notificaciones/clave").json()["clave"]
+    assert len(clave) == 87  # punto P-256 sin comprimir (65 bytes) en base64url
+    sub = {"endpoint": "https://push.example.com/abc", "keys": {"p256dh": "x", "auth": "y"}}
+    assert c.post("/api/notificaciones/suscribir", json=sub).json()["ok"]
+    assert c.post("/api/notificaciones/desuscribir", json={"endpoint": sub["endpoint"]}).json()["ok"]
+    assert c.post("/api/notificaciones/probar").status_code == 400  # ya no tiene dispositivos
+    from app.services.notificaciones import texto_resumen
+    assert texto_resumen({"vencidos": 1, "por_vencer": 0, "bajo_minimo": 3, "pendientes": 0}) == "1 lote vencido · 3 productos bajo el mínimo"
+    assert texto_resumen({"vencidos": 0, "por_vencer": 0, "bajo_minimo": 0, "pendientes": 0}) is None
+
+
+def test_configuracion_y_formato_de_pedido(c):
+    """Días de vencimiento configurables; formato en blanco (PDF y Excel) que se llena y se sube."""
+    from pypdf import PdfReader, PdfWriter
+
+    assert c.get("/api/ajustes").json()["valores"]["dias_vencimiento_pedido"] == 10
+    assert c.put("/api/ajustes", json={"dias_vencimiento_pedido": 500}).status_code == 422
+    assert c.put("/api/ajustes", json={"dias_vencimiento_pedido": 15}).json()["valores"]["dias_vencimiento_pedido"] == 15
+    c.put("/api/ajustes", json={"dias_vencimiento_pedido": 10})
+
+    # Excel: se llena cantidad_a_pedir y se sube.
+    wb = load_workbook(io.BytesIO(c.get("/api/pedidos/formato?tipo=xlsx").content))
+    h = wb.active
+    assert [x.value for x in h[1]][:1] == ["cod_farmacia"] and h.max_row > 2
+    filas = {h.cell(row=n, column=1).value: n for n in range(2, h.max_row + 1)}
+    h.cell(row=filas["LAB-ALB2"], column=6, value=3)
+    h.cell(row=filas["LAB-TIRAS"], column=6, value="x")
+    s = io.BytesIO(); wb.save(s)
+    r = c.post("/api/pedidos/formato", files={"archivo": ("f.xlsx", s.getvalue())})
+    assert r.status_code == 400 and "entero" in r.json()["detail"]
+    h.cell(row=filas["LAB-TIRAS"], column=6).value = None
+    s = io.BytesIO(); wb.save(s)
+    r = c.post("/api/pedidos/formato?reemplazar=true", files={"archivo": ("f.xlsx", s.getvalue())})
+    assert r.status_code == 200, r.text
+    ped = r.json()
+    assert [(i["producto"]["referencia"], i["cantidad_pedida"], i["motivo"]) for i in ped["items"]] == [("LAB-ALB2", 3, "Formato manual")]
+
+    # PDF con campos: se llena en un lector de PDF y se sube; reemplaza el borrador si se confirma.
+    pdf = c.get("/api/pedidos/formato?tipo=pdf").content
+    assert pdf.startswith(b"%PDF")
+    lector = PdfReader(io.BytesIO(pdf))
+    campo = next(k for k in lector.get_fields() if k.startswith("pedir_"))
+    w = PdfWriter(); w.append(lector)
+    for pagina in w.pages:
+        w.update_page_form_field_values(pagina, {campo: "2"}, auto_regenerate=False)
+    s = io.BytesIO(); w.write(s)
+    assert c.post("/api/pedidos/formato", files={"archivo": ("f.pdf", s.getvalue())}).status_code == 409
+    ped2 = c.post("/api/pedidos/formato?reemplazar=true", files={"archivo": ("f.pdf", s.getvalue())}).json()
+    assert len(ped2["items"]) == 1 and ped2["items"][0]["cantidad_pedida"] == 2
+    borradores = [x for x in c.get("/api/pedidos").json() if x["estado"] == "borrador"]
+    assert len(borradores) == 1 and borradores[0]["total_items"] == 1  # el borrador anterior se reemplazó
+    c.delete(f"/api/pedidos/{ped2['id']}")
+
+
+def test_secciones(c):
+    """Lista de secciones: el producto crea la suya, renombrar arrastra los productos, eliminar los mueve."""
+    r = c.post("/api/productos", json={"nombre": "Medio agar sangre", "referencia": "SEC-1", "stock_minimo": 0,
+                                       "seccion": "  Microbiología  "})
+    assert r.status_code == 200, r.text
+    pid = r.json()["id"]
+    lista = {x["nombre"]: x for x in c.get("/api/secciones").json()}
+    assert lista["Microbiología"]["productos"] == 1
+    assert c.post("/api/secciones", json={"nombre": "microbiología"}).status_code == 400  # repetida
+    otra = c.post("/api/secciones", json={"nombre": "Hematología · Prueba"}).json()
+    sid = lista["Microbiología"]["id"]
+    assert c.put(f"/api/secciones/{sid}", json={"nombre": "Hematología · Prueba"}).status_code == 400
+    c.put(f"/api/secciones/{sid}", json={"nombre": "Microbiología · Medios"})
+    assert c.get(f"/api/productos/{pid}").json()["seccion"] == "Microbiología · Medios"
+    assert c.delete(f"/api/secciones/{sid}?mover_a=Hematología · Prueba").json()["ok"]
+    assert c.get(f"/api/productos/{pid}").json()["seccion"] == "Hematología · Prueba"
+    assert "Microbiología · Medios" not in {x["nombre"] for x in c.get("/api/secciones").json()}
+    c.delete(f"/api/secciones/{otra['id']}")
+    assert c.get(f"/api/productos/{pid}").json()["seccion"] == ""

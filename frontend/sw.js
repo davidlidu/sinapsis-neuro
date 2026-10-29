@@ -1,10 +1,10 @@
-/* Service worker de Sinapsis: guarda la interfaz para que abra rápido y se pueda instalar.
+/* Service worker de Sinapsis: guarda la interfaz para que abra rápido, se pueda instalar y reciba notificaciones.
  * Los datos (/api) siempre van al servidor: nunca se guardan en caché. */
-const VERSION = "sinapsis-v0.1.1";
+const VERSION = "sinapsis-v0.3.1";
 const ARCHIVOS = [
   "/", "/index.html", "/styles.css", "/app.js", "/manifest.webmanifest",
   "/assets/deersystems-isotipo.svg", "/assets/vendor/html5-qrcode.min.js",
-  "/assets/icono-192.png", "/assets/icono-512.png",
+  "/assets/icono-192.png", "/assets/icono-512.png", "/assets/insignia-96.png", "/assets/neurologico-logo-claro.png",
   "/assets/fonts/inter-latin-400-normal.woff2", "/assets/fonts/inter-latin-500-normal.woff2",
   "/assets/fonts/inter-latin-600-normal.woff2", "/assets/fonts/montserrat-latin-600-normal.woff2",
   "/assets/fonts/montserrat-latin-700-normal.woff2", "/assets/fonts/jetbrains-mono-latin-500-normal.woff2",
@@ -28,4 +28,25 @@ self.addEventListener("fetch", (e) => {
     caches.open(VERSION).then((c) => c.put(e.request, copia));
     return r;
   }).catch(() => caches.match(e.request).then((r) => r || caches.match("/"))));
+});
+
+// Notificaciones push: el servidor envía {titulo, cuerpo, url}; se muestran con el ícono de la app.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { cuerpo: e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.titulo || "Sinapsis", {
+    body: d.cuerpo || "", icon: "/assets/icono-192.png", badge: "/assets/insignia-96.png", lang: "es-CO",
+    tag: "sinapsis-alertas", renotify: true, data: { url: d.url || "/#/alertas" },
+  }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || "/", self.location.origin).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (ventanas) => {
+    const abierta = ventanas.find((v) => v.url.startsWith(self.location.origin));
+    if (!abierta) return self.clients.openWindow(url);
+    await abierta.focus();
+    try { await abierta.navigate(url); } catch {}
+  }));
 });

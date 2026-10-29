@@ -21,7 +21,7 @@ def hoja_etiquetas(productos: list[Producto]) -> str:
     tarjetas = "".join(
         f"""<div class="et"><div class="qr">{qr_svg(p.codigo_qr)}</div>
         <div class="tx"><b>{html.escape(p.nombre)}</b><span>{html.escape(p.presentacion)}</span>
-        <code>{html.escape(p.codigo_qr)}</code><small>Ref. {html.escape(p.referencia)}</small></div></div>"""
+        <code>{html.escape(p.codigo_qr)}</code><small>Cód. farmacia {html.escape(p.referencia)}</small></div></div>"""
         for p in productos if p.codigo_qr
     )
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8">

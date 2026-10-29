@@ -3,7 +3,7 @@ FROM python:3.13-slim
 
 # Tesseract con español para leer los nombres de los productos (OCR sin IA).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa tesseract-ocr-eng \
+ && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa tesseract-ocr-eng tzdata \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -15,7 +15,8 @@ COPY frontend frontend
 
 ENV SINAPSIS_DATA_DIR=/datos \
     SINAPSIS_FRONTEND_DIR=/app/frontend \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    TZ=America/Bogota
 
 RUN useradd --create-home --uid 1000 sinapsis && mkdir -p /datos && chown sinapsis /datos
 USER sinapsis

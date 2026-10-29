@@ -2,6 +2,46 @@
 
 Formato: versión, fecha y cambios agrupados en *Agregado*, *Cambiado* y *Corregido*.
 
+## [0.3.1] — 2026-10-29
+### Agregado
+- Lista de secciones: en el producto la sección se elige de una lista (o se crea una nueva ahí mismo).
+  En **Configuración** se agregan, renombran (sus productos quedan con el nombre nuevo) y eliminan
+  (sus productos pasan a otra sección o quedan sin sección). La lista se arma sola con las secciones
+  que ya tenían los productos y con las que llegan en la carga del Excel.
+- Guía de despliegue en Dokploy (`docs/despliegue-dokploy.md`).
+
+## [0.3.0] — 2026-10-29 · Pedidos a farmacia
+### Agregado
+- El pedido sugerido incluye solo lo que está en cero, bajo el mínimo o con lotes que vencen en los
+  próximos 10 días (o ya vencidos), con el motivo de cada línea.
+- Botón **Quitar** en cada línea del borrador.
+- Cód. farmacia resaltado bajo cada producto del pedido y de la recepción: un toque lo copia para el
+  sistema interno. **Copiar lista** copia todos los códigos con su cantidad.
+- Formato de pedido en blanco (PDF llenable y Excel) con todos los productos, mínimo y cantidad a pedir;
+  al subirlo lleno se arma el borrador.
+- Pantalla **Configuración** (administrador): días de vencimiento para el pedido y para las alertas.
+### Cambiado
+- "Referencia" se llama ahora **Cód. farmacia** en la app, las etiquetas, la exportación y la plantilla
+  (`cod_farmacia`; el encabezado `referencia` se sigue aceptando).
+
+## [0.2.0] — 2026-10-29 · Laboratorio clínico
+### Agregado
+- Reactivos que se cuentan por pruebas (`pruebas_por_unidad`): existencias y mínimo en pruebas,
+  ingresos y pedidos en kits con conversión automática; el pedido sugerido redondea a kits enteros.
+- Sección del producto (laboratorio o servicio), visible en las listas y buscable.
+- Listado del laboratorio clínico convertido: `plantillas/catalogo_laboratorio_clinico.xlsx` (231 productos).
+- Columnas opcionales en la plantilla: `seccion`, `pruebas_por_unidad`, `activo`.
+- Notificaciones push con el ícono de la app: resumen diario de alertas, prueba y desactivación por dispositivo.
+- Instalación como app desde **Más opciones → Este dispositivo** (con guía para iPhone, Android y escritorio)
+  y accesos directos del ícono (Escanear, Alertas, Manual).
+- Manual de uso animado dentro de la app (`#/manual`).
+- Logo del Hospital Neurológico de Colombia en el ingreso, la barra lateral y *Acerca de*.
+### Cambiado
+- Una recarga del catálogo fija la existencia inicial de los productos que siguen en 0 y sin movimientos.
+- La imagen de Docker usa la zona horaria `America/Bogota`; el respaldo incluye la clave de notificaciones.
+### Corregido
+- La carga del Excel reconoce encabezados que el normalizador abrevia (como `unidad` → `und`).
+
 ## [0.1.1] — 2026-10-29
 ### Agregado
 - Vista de escritorio (desde 1024 px): navegación lateral, contenido más ancho, diálogos centrados

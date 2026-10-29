@@ -7,6 +7,7 @@ Todo lo que Sinapsis guarda está en la carpeta `datos/` del proyecto:
 | Base de datos (productos, lotes, pedidos, usuarios) | `datos/sinapsis.db` |
 | PDF de los pedidos a farmacia | `datos/pedidos/` |
 | Fotos de referencia | `datos/fotos/` |
+| Clave de las notificaciones push (si se pierde, cada dispositivo debe volver a activarlas) | `datos/vapid_privada.pem` |
 
 ## Respaldo diario automático
 `scripts/respaldo.sh` hace una copia consistente de la base de datos aunque la app esté en uso,

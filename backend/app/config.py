@@ -44,5 +44,10 @@ OPENROUTER_MODELO_ALTERNO = os.getenv("OPENROUTER_MODELO_ALTERNO", "")
 IA_LIMITE_DIARIO = int(os.getenv("SINAPSIS_IA_LIMITE_DIARIO", "50"))
 IA_HABILITADA = _bool("SINAPSIS_IA_HABILITADA", True) and bool(OPENROUTER_API_KEY and OPENROUTER_MODELO)
 
+# Notificaciones push (Web Push). Las claves VAPID se crean solas en DATA_DIR la primera vez.
+NOTIFICACIONES_HABILITADAS = _bool("SINAPSIS_NOTIFICACIONES", True)
+HORA_NOTIFICACION = int(os.getenv("SINAPSIS_HORA_NOTIFICACION", "7"))  # resumen diario, hora local
+VAPID_CONTACTO = os.getenv("SINAPSIS_VAPID_CONTACTO", "https://neurologico.org")  # mailto: o https:
+
 for carpeta in (DATA_DIR, PEDIDOS_DIR, FOTOS_DIR):
     carpeta.mkdir(parents=True, exist_ok=True)

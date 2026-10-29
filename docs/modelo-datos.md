@@ -20,12 +20,14 @@ llamadas_ia   (registro del respaldo con IA)
 | id | entero | |
 | nombre | texto | Como aparece impreso. |
 | nombre_normalizado | texto | Minúsculas, sin tildes, unidades unificadas (`500mg` → `500 mg`). Se usa en la búsqueda. |
-| referencia | texto, único | Clave de la carga desde Excel: si se repite, se actualiza el producto. |
+| referencia | texto, único | **Cód. farmacia** en la app y en los formatos. Clave de la carga desde Excel: si se repite, se actualiza el producto. |
 | codigo_barras | texto, único, opcional | |
 | codigo_qr | texto, único | Se asigna solo: `SNP-` + id con 6 dígitos. Todos los productos lo tienen. |
 | presentacion | texto | Ayuda a distinguir productos parecidos. |
 | metodo_identificacion | `barras` · `nombre` · `qr` | Indica cuáles necesitan etiqueta impresa. |
-| stock_minimo | entero | Por debajo se sugiere pedir. |
+| seccion | texto | Sección del laboratorio o servicio. |
+| pruebas_por_unidad | entero, opcional | Reactivos que se gastan por pruebas. Si tiene valor, `stock_minimo`, `cantidad_actual` y `lotes.cantidad` van en pruebas; ingresos y pedidos se hacen en unidades y se multiplican al registrar. Solo se puede cambiar con la existencia en 0. |
+| stock_minimo | entero | Por debajo se sugiere pedir (en pruebas si aplica). |
 | cantidad_actual | entero | Cambia solo con ingresos, recepciones y conteos (todo queda en `movimientos`). |
 | activo | sí/no | |
 
@@ -61,17 +63,34 @@ cantidad antes y después, el usuario y la fecha. No se edita ni se borra.
 ## pedido_items
 | Campo | Regla |
 |---|---|
-| cantidad_sugerida | `stock_minimo − cantidad_actual` al crear el borrador (0 si se agregó a mano). |
+| cantidad_sugerida | `stock_minimo − cantidad_actual` al crear el borrador (0 si se agregó a mano). Por pruebas: el faltante dividido por `pruebas_por_unidad`, redondeado hacia arriba a unidades. |
 | cantidad_pedida | La que el usuario confirma. |
+| motivo | Por qué entró al borrador: `En cero`, `Bajo el mínimo`, `Vencido`, `Vence en N días`, `Formato manual` (varios unidos con ` · `). Vacío si se agregó a mano. |
 | cantidad_recibida | Se acumula con cada recepción. |
 | estado | `pendiente` · `parcial` · `llego` · `cancelado`. |
 
 Un producto aparece una sola vez por pedido.
 
+## secciones
+| Campo | Regla |
+|---|---|
+| nombre | Único. El producto guarda este nombre en `productos.seccion`; renombrar la sección actualiza los productos. |
+
+## ajustes
+Pares `clave → valor` editables desde **Configuración**: `dias_vencimiento_pedido` (10) y
+`dias_alerta_vencimiento` (el de la configuración del servidor). Se leen al arrancar y se guardan al cambiarlos.
+
 ## usuarios y sesiones
 Roles `admin` (carga del catálogo, edición de productos, usuarios) y `operador` (todo lo demás).
 Las claves se guardan con PBKDF2-SHA256 (240.000 iteraciones). Las sesiones duran
 `SINAPSIS_SESION_HORAS` (12 por defecto).
+
+## suscripciones
+Dispositivos con notificaciones push activas: usuario, `endpoint` (único) y claves `p256dh` / `auth` del
+navegador. Se borran solas cuando el servicio push responde que el dispositivo ya no existe.
+
+Las columnas que se agregan después de una versión publicada se crean solas al arrancar
+(`database.asegurar_columnas`), sin herramienta de migraciones.
 
 ## llamadas_ia
 Fecha, modelo, si funcionó, el texto leído o el error. Se usa para el límite diario y para revisar el consumo.

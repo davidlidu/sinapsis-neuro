@@ -1,5 +1,5 @@
 """Conexión a la base de datos (SQLite por defecto)."""
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from . import config
@@ -24,6 +24,23 @@ SesionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 class Base(DeclarativeBase):
     pass
+
+
+# Columnas agregadas después de la primera versión: (tabla, columna, definición SQL).
+# create_all no altera tablas existentes, así que se agregan aquí al arrancar.
+COLUMNAS_NUEVAS = [
+    ("productos", "pruebas_por_unidad", "INTEGER"),
+    ("productos", "seccion", "VARCHAR(120) NOT NULL DEFAULT ''"),
+    ("pedido_items", "motivo", "VARCHAR(120) NOT NULL DEFAULT ''"),
+]
+
+
+def asegurar_columnas():
+    with engine.begin() as con:
+        for tabla, columna, definicion in COLUMNAS_NUEVAS:
+            existentes = {c["name"] for c in inspect(con).get_columns(tabla)}
+            if columna not in existentes:
+                con.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {definicion}"))
 
 
 def obtener_db():

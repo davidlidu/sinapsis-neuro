@@ -32,6 +32,8 @@ class ProductoEntrada(BaseModel):
     presentacion: str = ""
     metodo_identificacion: str = Field(default="nombre", pattern="^(barras|nombre|qr)$")
     stock_minimo: int = Field(default=0, ge=0)
+    pruebas_por_unidad: int | None = Field(default=None, gt=0)
+    seccion: str = Field(default="", max_length=120)
 
 
 class Ingreso(BaseModel):
@@ -84,6 +86,7 @@ def producto_json(p: Producto, detalle: bool = False) -> dict:
         "codigo_barras": p.codigo_barras, "codigo_qr": p.codigo_qr,
         "presentacion": p.presentacion, "metodo_identificacion": p.metodo_identificacion,
         "stock_minimo": p.stock_minimo, "cantidad_actual": p.cantidad_actual,
+        "pruebas_por_unidad": p.pruebas_por_unidad, "seccion": p.seccion,
         "bajo_minimo": p.cantidad_actual < p.stock_minimo, "activo": p.activo,
     }
     if detalle:
@@ -103,7 +106,8 @@ def lote_json(l: Lote, con_producto: bool = True) -> dict:
     }
     if con_producto:
         d["producto"] = {"id": l.producto.id, "nombre": l.producto.nombre,
-                         "referencia": l.producto.referencia, "presentacion": l.producto.presentacion}
+                         "referencia": l.producto.referencia, "presentacion": l.producto.presentacion,
+                         "pruebas_por_unidad": l.producto.pruebas_por_unidad}
     return d
 
 
@@ -113,10 +117,11 @@ def item_json(i: PedidoItem) -> dict:
         "producto": {"nombre": i.producto.nombre, "referencia": i.producto.referencia,
                      "presentacion": i.producto.presentacion, "codigo_barras": i.producto.codigo_barras,
                      "codigo_qr": i.producto.codigo_qr, "cantidad_actual": i.producto.cantidad_actual,
-                     "stock_minimo": i.producto.stock_minimo},
+                     "stock_minimo": i.producto.stock_minimo,
+                     "pruebas_por_unidad": i.producto.pruebas_por_unidad},
         "cantidad_sugerida": i.cantidad_sugerida, "cantidad_pedida": i.cantidad_pedida,
         "cantidad_recibida": i.cantidad_recibida, "estado": i.estado,
-        "fecha_recepcion": i.fecha_recepcion, "nota": i.nota,
+        "fecha_recepcion": i.fecha_recepcion, "nota": i.nota, "motivo": i.motivo,
     }
 
 

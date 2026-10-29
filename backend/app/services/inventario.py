@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from .. import config
+from . import ajustes
 from ..models import Lote, Movimiento, Pedido, PedidoItem, Producto
 
 
@@ -17,12 +18,15 @@ def _mover(db: Session, p: Producto, nueva: int, tipo: str, detalle: str, usuari
 def registrar_ingreso(db: Session, p: Producto, cantidad: int, fecha_vencimiento: date | None,
                       fecha_ingreso: date | None, lote: str, usuario: str,
                       origen: str = "manual", pedido_item_id: int | None = None) -> Lote:
+    """cantidad va en unidades (kits); si el producto se cuenta por pruebas se convierte."""
+    suma = cantidad * (p.pruebas_por_unidad or 1)
     nuevo = Lote(producto_id=p.id, fecha_ingreso=fecha_ingreso or date.today(),
-                 fecha_vencimiento=fecha_vencimiento, lote=lote or "", cantidad=cantidad,
+                 fecha_vencimiento=fecha_vencimiento, lote=lote or "", cantidad=suma,
                  origen=origen, pedido_item_id=pedido_item_id, usuario=usuario)
     db.add(nuevo)
     tipo = "recepcion" if origen == "pedido" else "ingreso"
-    _mover(db, p, p.cantidad_actual + cantidad, tipo, f"Ingreso de {cantidad} (lote {lote or 's/n'})", usuario)
+    que = f"{cantidad} und = {suma} pruebas" if p.pruebas_por_unidad else str(cantidad)
+    _mover(db, p, p.cantidad_actual + suma, tipo, f"Ingreso de {que} (lote {lote or 's/n'})", usuario)
     return nuevo
 
 
@@ -41,14 +45,14 @@ def estado_vencimiento(fecha: date | None, hoy: date | None = None) -> str:
     hoy = hoy or date.today()
     if fecha < hoy:
         return "vencido"
-    if fecha <= hoy + timedelta(days=config.DIAS_ALERTA_VENCIMIENTO):
+    if fecha <= hoy + timedelta(days=ajustes.valor("dias_alerta_vencimiento")):
         return "por_vencer"
     return "vigente"
 
 
 def alertas(db: Session) -> dict:
     hoy = date.today()
-    limite = hoy + timedelta(days=config.DIAS_ALERTA_VENCIMIENTO)
+    limite = hoy + timedelta(days=ajustes.valor("dias_alerta_vencimiento"))
 
     lotes = db.scalars(
         select(Lote).options(selectinload(Lote.producto))
@@ -117,5 +121,5 @@ def resumen(db: Session) -> dict:
         "por_vencer": len(a["por_vencer"]),
         "bajo_minimo": len(a["bajo_minimo"]),
         "pendientes": len(a["pendientes"]),
-        "dias_alerta_vencimiento": config.DIAS_ALERTA_VENCIMIENTO,
+        "dias_alerta_vencimiento": ajustes.valor("dias_alerta_vencimiento"),
     }

@@ -67,7 +67,9 @@ Ejemplo de respuesta de `/foto`:
 | Método | Ruta | Qué hace |
 |---|---|---|
 | GET | `` | Últimos 100 pedidos. |
-| POST | `` | Crea el borrador con lo que está bajo el mínimo. 400 si ya hay un borrador. |
+| POST | `` | Crea el borrador con lo que está en cero, bajo el mínimo o con lotes que vencen en `dias_vencimiento_pedido` días; cada línea trae `motivo`. 400 si ya hay un borrador. |
+| GET | `/formato?tipo=pdf\|xlsx` | Formato en blanco con todos los productos activos: cód. farmacia, producto, presentación, mínimo y cantidad a pedir (campos llenables en el PDF). |
+| POST | `/formato?reemplazar=false` | `archivo` (PDF o Excel lleno, ≤ 20 MB) crea el borrador con esas cantidades. 409 si ya hay un borrador y `reemplazar` es falso; 400 con el detalle si hay códigos o cantidades inválidas. |
 | GET | `/{id}` | Detalle con líneas. |
 | PUT | `/{id}/items` | `{producto_id, cantidad}` agrega o ajusta; `cantidad: 0` quita. Solo en borrador. |
 | DELETE | `/{id}` | Elimina un borrador. |
@@ -76,6 +78,35 @@ Ejemplo de respuesta de `/foto`:
 | POST | `/{id}/recibir` | `{item_id, cantidad, fecha_vencimiento, lote}` suma al inventario. |
 | POST | `/{id}/cancelar-pendiente` | `{item_id, nota}` deja de esperar una línea. |
 | POST | `/{id}/cerrar` | `{observaciones}` cierra la recepción; lo que falta queda con alerta. |
+
+## Configuración — `/api/ajustes`
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `` | `{valores, descripciones}`. |
+| PUT | `` | Solo administrador. `{dias_vencimiento_pedido (0–365), dias_alerta_vencimiento (1–365)}`; ambos opcionales. |
+
+`dias_alerta_vencimiento` arranca con `SINAPSIS_DIAS_ALERTA_VENCIMIENTO` y se puede cambiar desde la app.
+
+## Secciones — `/api/secciones`
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `` | `[{id, nombre, productos}]` (productos activos de cada sección). |
+| POST | `` | Admin. `{nombre}`; 400 si ya existe (sin distinguir mayúsculas). |
+| PUT | `/{id}` | Admin. `{nombre}`; renombra y actualiza los productos que la usan. |
+| DELETE | `/{id}?mover_a=` | Admin. Sus productos pasan a `mover_a` (otra sección) o quedan sin sección. |
+
+Al guardar un producto o cargar el Excel con una sección nueva, se agrega sola a la lista.
+
+## Notificaciones — `/api/notificaciones`
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/clave` | Clave pública VAPID (base64url) y hora del resumen diario. |
+| POST | `/suscribir` | Cuerpo: la suscripción del navegador (`{endpoint, keys: {p256dh, auth}}`). |
+| POST | `/desuscribir` | `{endpoint}` |
+| POST | `/probar` | Envía una notificación de prueba a los dispositivos del usuario. |
+
+El resumen diario se envía solo, una vez al día desde `SINAPSIS_HORA_NOTIFICACION`, si hay algo que
+alertar. Los productos incluyen `pruebas_por_unidad` y `seccion`.
 
 ## Sistema
 `GET /api/salud` → `{ok, version, ia_respaldo}` (sin sesión; lo usa el healthcheck de Docker).

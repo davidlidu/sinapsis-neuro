@@ -3,6 +3,7 @@
 Desarrollado por DeerSystems para el Instituto Neurológico de Colombia.
 Desarrollo sin ánimo de lucro.
 """
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -11,23 +12,32 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
-from .database import Base, SesionLocal, engine
-from .routers import auth, identificar, inventario, pedidos, productos
+from .database import Base, SesionLocal, asegurar_columnas, engine
+from .routers import ajustes, auth, identificar, inventario, notificaciones, pedidos, productos, secciones
+from .services import ajustes as svc_ajustes
+from .services import secciones as svc_secciones
+from .services.notificaciones import ciclo_diario
 from .seguridad import asegurar_admin
 
-VERSION = "0.1.0"
+VERSION = "0.3.1"
 log = logging.getLogger("sinapsis")
 
 
 @asynccontextmanager
 async def ciclo_de_vida(_: FastAPI):
     Base.metadata.create_all(engine)
+    asegurar_columnas()
     with SesionLocal() as db:
         clave = asegurar_admin(db)
+        svc_ajustes.cargar(db)
+        svc_secciones.sincronizar(db)
     if clave:
         log.warning("Se creó el usuario '%s' con la clave temporal: %s  (cámbiela al ingresar)",
                     config.ADMIN_USUARIO, clave)
+    tarea = asyncio.create_task(ciclo_diario()) if config.NOTIFICACIONES_HABILITADAS else None
     yield
+    if tarea:
+        tarea.cancel()
 
 
 app = FastAPI(
@@ -38,7 +48,7 @@ app = FastAPI(
     lifespan=ciclo_de_vida,
 )
 
-for r in (auth, productos, identificar, inventario, pedidos):
+for r in (auth, productos, identificar, inventario, pedidos, notificaciones, ajustes, secciones):
     app.include_router(r.router)
 
 

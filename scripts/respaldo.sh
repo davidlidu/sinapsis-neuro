@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Respaldo diario de Sinapsis: base de datos (copia consistente), PDF de pedidos y fotos.
+# Respaldo diario de Sinapsis: base de datos (copia consistente), PDF de pedidos, fotos y clave de notificaciones.
 # Programar con cron, por ejemplo a las 2:15 a. m.:
 #   15 2 * * * /opt/sinapsis/scripts/respaldo.sh >> /var/log/sinapsis-respaldo.log 2>&1
 set -euo pipefail
@@ -16,6 +16,7 @@ mkdir -p "$DESTINO"
 docker exec sinapsis python -c "import sqlite3; s=sqlite3.connect('/datos/sinapsis.db'); d=sqlite3.connect('/datos/respaldo.db'); s.backup(d); d.close(); s.close()"
 mv "$PROYECTO/datos/respaldo.db" "$TMP/sinapsis.db"
 cp -r "$PROYECTO/datos/pedidos" "$PROYECTO/datos/fotos" "$TMP/" 2>/dev/null || true
+cp "$PROYECTO/datos/vapid_privada.pem" "$TMP/" 2>/dev/null || true   # clave de las notificaciones push
 
 tar -czf "$DESTINO/sinapsis_$FECHA.tar.gz" -C "$TMP" .
 find "$DESTINO" -name 'sinapsis_*.tar.gz' -mtime +"$DIAS_A_GUARDAR" -delete

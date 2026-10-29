@@ -3,7 +3,7 @@
 **Inventario, vencimientos y pedidos a farmacia del Instituto Neurológico de Colombia.**
 Desarrollado por **DeerSystems** como proyecto sin ánimo de lucro.
 
-Sinapsis se usa desde el celular: se escanea un producto, se registra su fecha de ingreso y de
+Sinapsis se usa desde el celular o el computador, se instala como app (PWA) y envía notificaciones: se escanea un producto, se registra su fecha de ingreso y de
 vencimiento, y la plataforma avisa qué está por vencer, qué está bajo el mínimo y qué no ha
 llegado de farmacia. Funciona **sin inteligencia artificial**; la IA es solo un respaldo opcional.
 

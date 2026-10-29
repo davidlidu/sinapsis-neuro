@@ -1,8 +1,10 @@
 """Pedidos a farmacia: borrador sugerido, PDF del pedido final, recepción y pendientes."""
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from datetime import date
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -11,6 +13,7 @@ from ..database import obtener_db
 from ..models import Pedido, PedidoItem, Usuario
 from ..schemas import Cancelacion, Cierre, LineaPedido, Recepcion, item_json, pedido_json
 from ..seguridad import usuario_actual
+from ..services import formato_pedido
 from ..services import pedidos as svc
 
 router = APIRouter(prefix="/api/pedidos", tags=["Pedidos"])
@@ -38,7 +41,41 @@ def listar(_: Usuario = Depends(usuario_actual), db: Session = Depends(obtener_d
         select(Pedido).options(selectinload(Pedido.items)).order_by(Pedido.id.desc()).limit(100))]
 
 
-@router.post("", summary="Crear un borrador sugerido por stock mínimo")
+@router.get("/formato", summary="Formato de pedido en blanco (PDF para llenar o Excel)")
+def formato(tipo: str = Query("pdf", pattern="^(pdf|xlsx)$"), _: Usuario = Depends(usuario_actual),
+            db: Session = Depends(obtener_db)):
+    productos = formato_pedido.productos_del_formato(db)
+    nombre = f"formato_pedido_{date.today().isoformat()}.{tipo}"
+    if tipo == "pdf":
+        return Response(formato_pedido.generar_pdf(productos), media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+    return Response(formato_pedido.generar_excel(productos),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+
+@router.post("/formato", summary="Crear el borrador desde el formato lleno (PDF o Excel)")
+async def cargar_formato(archivo: UploadFile = File(...), reemplazar: bool = False,
+                         u: Usuario = Depends(usuario_actual), db: Session = Depends(obtener_db)):
+    contenido = await archivo.read()
+    if len(contenido) > MAX_PDF:
+        raise HTTPException(413, "El archivo supera 20 MB.")
+    lineas, errores = formato_pedido.leer(db, contenido)
+    if errores:
+        raise HTTPException(400, " ".join(errores[:8]) + (f" (y {len(errores) - 8} más)" if len(errores) > 8 else ""))
+    if not lineas:
+        raise HTTPException(400, "El formato no tiene cantidades a pedir.")
+    borrador = db.scalar(select(Pedido).where(Pedido.estado == "borrador"))
+    if borrador and not reemplazar:
+        raise HTTPException(409, f"Ya hay un borrador abierto (pedido #{borrador.id}).")
+    if borrador:
+        db.delete(borrador)
+        db.commit()
+    p = svc.borrador_desde_lineas(db, u.usuario, lineas)
+    return pedido_json(_pedido(db, p.id), con_items=True)
+
+
+@router.post("", summary="Crear un borrador sugerido: en cero, bajo el mínimo o por vencer")
 def crear(u: Usuario = Depends(usuario_actual), db: Session = Depends(obtener_db)):
     borrador = db.scalar(select(Pedido).where(Pedido.estado == "borrador"))
     if borrador:

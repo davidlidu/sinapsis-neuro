@@ -31,7 +31,7 @@ class Producto(Base):
     __tablename__ = "productos"
     id: Mapped[int] = mapped_column(primary_key=True)
     nombre: Mapped[str] = mapped_column(String(200))
-    referencia: Mapped[str] = mapped_column(String(80), unique=True)
+    referencia: Mapped[str] = mapped_column(String(80), unique=True)  # se muestra como "Cód. farmacia"
     codigo_barras: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     # Código propio que va impreso en la etiqueta QR (SNP-000123).
     codigo_qr: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
@@ -39,6 +39,12 @@ class Producto(Base):
     # Cómo se identifica: barras | nombre | qr
     metodo_identificacion: Mapped[str] = mapped_column(String(10), default="nombre")
     nombre_normalizado: Mapped[str] = mapped_column(String(200), default="", index=True)
+    # Reactivos que se gastan por pruebas (ej. kit de 750 pruebas). Si tiene valor, stock_minimo,
+    # cantidad_actual y la cantidad de los lotes se llevan en PRUEBAS; los ingresos y los pedidos
+    # a farmacia siguen siendo en unidades (kits) y se convierten al registrar.
+    pruebas_por_unidad: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Sección del laboratorio o servicio (Química, Microbiología…), para ordenar y buscar.
+    seccion: Mapped[str] = mapped_column(String(120), default="")
     stock_minimo: Mapped[int] = mapped_column(Integer, default=0)
     cantidad_actual: Mapped[int] = mapped_column(Integer, default=0)
     foto_referencia: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -120,6 +126,8 @@ class PedidoItem(Base):
     estado: Mapped[str] = mapped_column(String(12), default="pendiente")
     fecha_recepcion: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     nota: Mapped[str] = mapped_column(String(255), default="")
+    # Por qué entró al borrador: "En cero · Vence en 6 días", "Bajo el mínimo", "Formato manual"…
+    motivo: Mapped[str] = mapped_column(String(120), default="")
     pedido: Mapped[Pedido] = relationship(back_populates="items")
     producto: Mapped[Producto] = relationship()
 
@@ -134,3 +142,28 @@ class LlamadaIA(Base):
     texto: Mapped[str] = mapped_column(String(500), default="")
     error: Mapped[str] = mapped_column(String(255), default="")
     usuario: Mapped[str] = mapped_column(String(60), default="")
+
+
+class Suscripcion(Base):
+    """Dispositivo que aceptó recibir notificaciones push (Web Push)."""
+    __tablename__ = "suscripciones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(String(1000), unique=True)
+    p256dh: Mapped[str] = mapped_column(String(255))
+    auth: Mapped[str] = mapped_column(String(255))
+    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Ajuste(Base):
+    """Ajustes que el administrador cambia desde la app (Más opciones → Configuración)."""
+    __tablename__ = "ajustes"
+    clave: Mapped[str] = mapped_column(String(60), primary_key=True)
+    valor: Mapped[str] = mapped_column(String(255))
+
+
+class Seccion(Base):
+    """Lista de secciones del laboratorio o servicio. El producto guarda el nombre (productos.seccion)."""
+    __tablename__ = "secciones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(120), unique=True)

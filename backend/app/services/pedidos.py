@@ -1,14 +1,15 @@
 """Ciclo de pedidos a farmacia.
 
-Borrador (sugerido por stock mínimo, confirmado a mano) → Enviado (con PDF)
+Borrador (sugerido: en cero, bajo el mínimo o por vencer; confirmado a mano) → Enviado (con PDF)
 → Recibido parcial → Recibido, o Cerrado con pendientes.
 """
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..models import Pedido, PedidoItem, Producto
+from ..models import Lote, Pedido, PedidoItem, Producto
+from . import ajustes
 from .inventario import registrar_ingreso
 
 
@@ -17,20 +18,63 @@ class ErrorPedido(ValueError):
 
 
 def cantidad_sugerida(p: Producto) -> int:
-    """Lo necesario para volver a cubrir el stock mínimo."""
-    return max(p.stock_minimo - p.cantidad_actual, 0)
+    """Unidades necesarias para volver a cubrir el stock mínimo.
+
+    Si el producto se cuenta por pruebas, el faltante en pruebas se redondea hacia arriba a kits.
+    """
+    faltan = max(p.stock_minimo - p.cantidad_actual, 0)
+    return -(-faltan // p.pruebas_por_unidad) if p.pruebas_por_unidad else faltan
+
+
+def _unidades(p: Producto, cantidad: int) -> int:
+    return -(-cantidad // p.pruebas_por_unidad) if p.pruebas_por_unidad else cantidad
 
 
 def crear_borrador(db: Session, usuario: str) -> Pedido:
-    """Arma un pedido con todo lo que está por debajo del mínimo. Nunca se envía solo."""
+    """Arma un pedido con lo que está en cero, bajo el mínimo o con lotes que vencen pronto.
+
+    Los días de "vence pronto" se configuran en Más opciones → Configuración. Nunca se envía solo:
+    el operador revisa, quita lo que no necesita y confirma con el PDF.
+    """
+    hoy = date.today()
+    limite = hoy + timedelta(days=ajustes.valor("dias_vencimiento_pedido"))
+    por_vencer: dict[int, list[Lote]] = {}
+    for l in db.scalars(select(Lote).where(Lote.estado == "activo", Lote.fecha_vencimiento.is_not(None),
+                                           Lote.fecha_vencimiento <= limite)):
+        por_vencer.setdefault(l.producto_id, []).append(l)
+
     pedido = Pedido(estado="borrador", usuario=usuario)
     db.add(pedido)
-    for p in db.scalars(
-        select(Producto).where(Producto.activo.is_(True), Producto.cantidad_actual < Producto.stock_minimo)
-        .order_by(Producto.nombre)
-    ):
-        q = cantidad_sugerida(p)
-        pedido.items.append(PedidoItem(producto_id=p.id, cantidad_sugerida=q, cantidad_pedida=q))
+    candidatos = db.scalars(select(Producto).where(Producto.activo.is_(True), or_(
+        Producto.cantidad_actual <= 0, Producto.cantidad_actual < Producto.stock_minimo,
+        Producto.id.in_(por_vencer.keys()))).order_by(Producto.nombre))
+    for p in candidatos:
+        motivos, q = [], cantidad_sugerida(p)
+        if p.cantidad_actual <= 0:
+            motivos.append("En cero")
+            q = max(q, 1)
+        elif p.cantidad_actual < p.stock_minimo:
+            motivos.append("Bajo el mínimo")
+        if p.id in por_vencer:
+            lotes = por_vencer[p.id]
+            primero = min(l.fecha_vencimiento for l in lotes)
+            dias = (primero - hoy).days
+            motivos.append("Vencido" if dias < 0 else "Vence hoy" if dias == 0 else f"Vence en {dias} {'día' if dias == 1 else 'días'}")
+            # Reponer lo que se va a perder, sin pedir menos de lo que falta para el mínimo.
+            q = max(q, _unidades(p, sum(l.cantidad for l in lotes)), 1)
+        pedido.items.append(PedidoItem(producto_id=p.id, cantidad_sugerida=q, cantidad_pedida=q,
+                                       motivo=" · ".join(motivos)))
+    db.commit()
+    return pedido
+
+
+def borrador_desde_lineas(db: Session, usuario: str, lineas: dict[int, int]) -> Pedido:
+    """Borrador armado a mano con el formato de pedido (PDF o Excel) ya lleno."""
+    pedido = Pedido(estado="borrador", usuario=usuario)
+    db.add(pedido)
+    for producto_id, cantidad in lineas.items():
+        pedido.items.append(PedidoItem(producto_id=producto_id, cantidad_sugerida=0, cantidad_pedida=cantidad,
+                                       motivo="Formato manual"))
     db.commit()
     return pedido
 

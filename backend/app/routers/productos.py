@@ -13,7 +13,7 @@ from ..database import obtener_db
 from ..models import Alias, Lote, Producto, Usuario
 from ..schemas import ProductoEntrada, producto_json
 from ..seguridad import solo_admin, usuario_actual
-from ..services import catalogo
+from ..services import catalogo, secciones
 from ..services.etiquetas import hoja_etiquetas, qr_svg
 from ..services.inventario import estado_vencimiento
 from ..services.texto import normalizar, normalizar_codigo
@@ -30,6 +30,7 @@ def listar(q: str = "", filtro: str = Query("todos", pattern="^(todos|bajo_minim
     if q:
         n, c = f"%{normalizar(q)}%", normalizar_codigo(q)
         consulta = consulta.where(or_(Producto.nombre_normalizado.like(n), Producto.referencia == c,
+                                      Producto.seccion.ilike(f"%{q.strip()}%"),
                                       Producto.codigo_barras == c, Producto.codigo_qr == c))
     if filtro == "bajo_minimo":
         consulta = consulta.where(Producto.cantidad_actual < Producto.stock_minimo)
@@ -76,16 +77,18 @@ def exportar(_: Usuario = Depends(usuario_actual), db: Session = Depends(obtener
     wb = Workbook()
     hoja = wb.active
     hoja.title = "Inventario"
-    enc = ["Referencia", "Nombre", "Presentación", "Código de barras", "Código QR",
-           "Cantidad actual", "Stock mínimo", "Bajo mínimo"]
+    enc = ["Cód. farmacia", "Nombre", "Sección", "Presentación", "Código de barras", "Código QR",
+           "Pruebas por unidad", "Cantidad actual", "Stock mínimo", "Se cuenta en", "Bajo mínimo"]
     hoja.append(enc)
     productos = db.scalars(select(Producto).options(selectinload(Producto.lotes))
                            .where(Producto.activo.is_(True)).order_by(Producto.nombre)).all()
     for p in productos:
-        hoja.append([p.referencia, p.nombre, p.presentacion, p.codigo_barras or "", p.codigo_qr or "",
-                     p.cantidad_actual, p.stock_minimo, "Sí" if p.cantidad_actual < p.stock_minimo else "No"])
+        hoja.append([p.referencia, p.nombre, p.seccion, p.presentacion, p.codigo_barras or "", p.codigo_qr or "",
+                     p.pruebas_por_unidad or "", p.cantidad_actual, p.stock_minimo,
+                     "Pruebas" if p.pruebas_por_unidad else "Unidades",
+                     "Sí" if p.cantidad_actual < p.stock_minimo else "No"])
     lotes = wb.create_sheet("Lotes y vencimientos")
-    lotes.append(["Referencia", "Nombre", "Lote", "Cantidad ingresada", "Fecha ingreso",
+    lotes.append(["Cód. farmacia", "Nombre", "Lote", "Cantidad ingresada (pruebas o unidades)", "Fecha ingreso",
                   "Fecha vencimiento", "Estado", "Origen"])
     etiqueta = {"vencido": "Vencido", "por_vencer": "Por vencer", "vigente": "Vigente", "sin_fecha": "Sin fecha"}
     for p in productos:
@@ -138,10 +141,14 @@ def editar(pid: int, datos: ProductoEntrada, _: Usuario = Depends(solo_admin), d
 def _guardar(db: Session, p: Producto, d: ProductoEntrada) -> Producto:
     ref, codigo = normalizar_codigo(d.referencia), normalizar_codigo(d.codigo_barras) or None
     if db.scalar(select(Producto).where(Producto.referencia == ref, Producto.id != (p.id or 0))):
-        raise HTTPException(400, "Ya existe otro producto con esa referencia.")
+        raise HTTPException(400, "Ya existe otro producto con ese código de farmacia.")
     if codigo and db.scalar(select(Producto).where(Producto.codigo_barras == codigo, Producto.id != (p.id or 0))):
         raise HTTPException(400, "Ya existe otro producto con ese código de barras.")
+    if p.id and p.cantidad_actual and d.pruebas_por_unidad != p.pruebas_por_unidad:
+        raise HTTPException(400, "Para cambiar las pruebas por unidad, primero registre un conteo en 0 "
+                                 "y luego vuelva a ingresar la existencia.")
     p.nombre, p.referencia, p.codigo_barras = d.nombre.strip(), ref, codigo
+    p.pruebas_por_unidad, p.seccion = d.pruebas_por_unidad, secciones.asegurar(db, d.seccion)
     p.nombre_normalizado = normalizar(d.nombre)
     p.presentacion, p.stock_minimo = d.presentacion.strip(), d.stock_minimo
     p.metodo_identificacion = d.metodo_identificacion

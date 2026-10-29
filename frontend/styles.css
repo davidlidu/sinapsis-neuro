@@ -236,3 +236,125 @@ table.tabla td:last-child { text-align: right; color: var(--ink); }
   .hoja .asa { display: none; }
   .aviso { bottom: 24px; left: calc(50% + var(--lateral) / 2); }
 }
+
+/* ---------- Logo del hospital, accesos y listas de pasos ---------- */
+.logo-neuro { width: 220px; max-width: 100%; height: auto; }
+.logo-neuro.chico { width: 160px; }
+.login .logo img.logo-neuro { width: 240px; height: auto; }
+.nav .lateral-logo, .nav .lateral-extra { display: none; }
+.enlace-manual { color: inherit; align-items: center; }
+.enlace-manual > svg { width: 28px; height: 28px; flex: none; color: var(--cian); }
+ol.pasos { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 22px; }
+ol.pasos li::marker { color: var(--primary-text); font: 600 14px var(--display); }
+ol.pasos b { color: var(--ink); }
+
+@media (min-width: 1024px) {
+  .nav .lateral-logo { display: block; position: absolute; top: 20px; left: 20px; width: calc(var(--lateral) - 40px); height: auto; }
+  .nav .lateral-extra { display: flex; margin-top: auto; }
+}
+
+/* ---------- Manual animado ---------- */
+.man-indice { position: sticky; top: 66px; z-index: 5; padding: 8px 0; background: var(--canvas); }
+.man-capitulo { display: grid; gap: 20px; scroll-margin-top: 120px; }
+.man-escena { display: flex; justify-content: center; padding: 8px 0; }
+.man-escena * { animation-play-state: paused; }
+.man-escena.en-vista * { animation-play-state: running; }
+@media (min-width: 760px) { .man-capitulo { grid-template-columns: 1.2fr 1fr; align-items: center; } }
+
+.man-tel { position: relative; width: 220px; height: 300px; border-radius: 26px; border: 6px solid #0d2a38; background: var(--canvas);
+  box-shadow: 0 0 0 1px var(--hairline-strong), 0 18px 40px #0008; overflow: hidden; padding: 18px 14px; font-size: 12px; color: var(--body); }
+.man-tit { font: 600 12px/16px var(--display); color: var(--ink); margin-bottom: 12px; }
+.man-toast { position: absolute; left: 12px; right: 12px; bottom: 14px; padding: 9px 12px; border-radius: 10px; background: var(--ink); color: var(--azul);
+  font: 600 12px/16px var(--text); text-align: center; animation: man-toast 4s var(--ease) infinite; }
+.man-toast b { color: var(--verde-profundo); }
+@keyframes man-toast { 0%, 55% { opacity: 0; transform: translateY(14px); } 65%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* 1. Escáner */
+.man-camara { position: absolute; inset: 0; background: radial-gradient(circle at 50% 40%, #12384a, #02101a); }
+.man-codigo { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); width: 120px; height: 70px; padding: 8px; display: flex; gap: 3px;
+  justify-content: center; background: #f2f6f8; border-radius: 4px; }
+.man-codigo i { display: block; width: 3px; background: #051923; }
+.man-codigo i:nth-child(3n) { width: 6px; } .man-codigo i:nth-child(4n) { width: 2px; }
+.man-linea { position: absolute; left: 34px; right: 34px; top: 42%; height: 2px; background: var(--gradiente); box-shadow: 0 0 12px var(--cian);
+  animation: man-barrido 4s var(--ease) infinite; }
+@keyframes man-barrido { 0% { transform: translateY(-34px); } 25% { transform: translateY(34px); } 50% { transform: translateY(-34px); } 55%, 100% { transform: translateY(0); opacity: 0; } }
+
+/* 2. Formulario de ingreso */
+.man-campo { margin-bottom: 10px; }
+.man-campo span { display: block; font-size: 11px; color: var(--mute); margin-bottom: 4px; }
+.man-escribe { display: block; height: 30px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--hairline-strong); background: var(--surface-strong);
+  font: 500 12px/18px var(--mono); font-style: normal; color: var(--ink); white-space: nowrap; overflow: hidden; }
+.man-form .man-escribe { animation: man-escribir 4.5s steps(10) infinite; animation-delay: var(--d); }
+@keyframes man-escribir { 0% { color: transparent; border-color: var(--hairline-strong); } 8% { border-color: var(--cian); } 30%, 100% { color: var(--ink); border-color: var(--hairline-strong); } }
+.man-equiv { font-size: 11px; color: var(--primary-text); margin: 4px 0 12px; animation: man-aparece 4.5s infinite; }
+.man-boton { padding: 9px; border-radius: 6px; background: var(--primary); color: var(--azul); text-align: center; font: 600 12px var(--text);
+  animation: man-pulso 4.5s infinite; }
+.man-form .man-toast { animation-duration: 4.5s; }
+@keyframes man-aparece { 0%, 40% { opacity: 0; } 50%, 100% { opacity: 1; } }
+@keyframes man-pulso { 0%, 50% { transform: none; } 55% { transform: scale(.94); background: var(--verde-profundo); } 62%, 100% { transform: none; } }
+
+/* 3. Pruebas */
+.man-cifra { display: flex; flex-direction: column; margin-bottom: 14px; }
+.man-cifra b { position: relative; height: 40px; font: 700 34px/40px var(--display); color: var(--ink); }
+.man-cifra b span { position: absolute; left: 0; top: 0; }
+.man-n1, .man-n2 { opacity: 0; }
+.man-n1 { animation: man-n1 6s infinite; } .man-n2 { animation: man-n2 6s infinite; }
+.man-n3 { color: var(--warning-text); animation: man-n3 6s infinite; }
+@keyframes man-n1 { 0%, 30% { opacity: 1; } 34%, 100% { opacity: 0; } }
+@keyframes man-n2 { 0%, 32% { opacity: 0; } 36%, 62% { opacity: 1; } 66%, 100% { opacity: 0; } }
+@keyframes man-n3 { 0%, 64% { opacity: 0; } 68%, 100% { opacity: 1; } }
+.man-cifra small { font-size: 11px; color: var(--mute); }
+.man-barra { position: relative; height: 10px; border-radius: 5px; background: var(--hairline-strong); overflow: hidden; margin-bottom: 18px; }
+.man-barra i { position: absolute; inset: 0 auto 0 0; width: 8%; background: var(--warning-text); border-radius: 5px; animation: man-gasto 6s var(--ease) infinite; }
+.man-barra em { position: absolute; top: 0; bottom: 0; left: 10%; width: 2px; background: var(--coral); }
+@keyframes man-gasto { 0%, 25% { width: 100%; background: var(--verde); } 40%, 55% { width: 41%; background: var(--verde); } 70%, 100% { width: 8%; background: var(--warning-text); } }
+.man-chip { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid #ffb70366; color: var(--warning-text); font: 500 11px var(--mono);
+  animation: man-chip 6s var(--ease) infinite; }
+@keyframes man-chip { 0%, 68% { opacity: 0; transform: scale(.7); } 74%, 100% { opacity: 1; transform: none; } }
+
+/* 4. Alertas */
+.man-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: center; }
+.man-kpi { padding: 12px 10px; border-radius: 10px; border: 1px solid var(--hairline); background: var(--surface); animation: man-kpi 5s var(--ease) infinite;
+  animation-delay: calc(var(--i) * .25s); }
+.man-kpi b { display: block; font: 700 26px/30px var(--display); }
+.man-kpi.e b { color: var(--danger-text); } .man-kpi.a b { color: var(--warning-text); }
+.man-kpi span { font-size: 11px; }
+@keyframes man-kpi { 0%, 6% { opacity: 0; transform: translateY(10px) scale(.95); } 16%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* 5. Pedido */
+.man-flujo { display: flex; flex-direction: column; justify-content: center; gap: 22px; padding-left: 22px; }
+.man-flujo::before { content: ""; position: absolute; left: 40px; top: 70px; bottom: 70px; width: 2px; background: var(--hairline-strong); }
+.man-paso { position: relative; display: flex; align-items: center; gap: 12px; font: 600 13px var(--text); color: var(--mute);
+  animation: man-paso 6s infinite; animation-delay: calc(var(--i) * 1.4s); }
+.man-paso span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--hairline-strong);
+  background: var(--canvas); font: 700 13px var(--display); }
+@keyframes man-paso { 0% { color: var(--mute); } 8%, 100% { color: var(--ink); } }
+.man-paso span { animation: man-paso-n 6s infinite; animation-delay: calc(var(--i) * 1.4s); }
+@keyframes man-paso-n { 0% { background: var(--canvas); border-color: var(--hairline-strong); color: var(--mute); }
+  8%, 100% { background: var(--primary); border-color: var(--primary); color: var(--azul); } }
+
+/* 6. Instalar y notificar */
+.man-inicio { background: linear-gradient(160deg, #0d2a38, #051923); }
+.man-iconos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 70px; }
+.man-iconos i, .man-iconos img { width: 100%; aspect-ratio: 1; border-radius: 10px; background: #94a3b833; }
+.man-iconos img { animation: man-caer 5s var(--ease) infinite; }
+@keyframes man-caer { 0%, 10% { opacity: 0; transform: translateY(-30px) scale(.6); } 25%, 100% { opacity: 1; transform: none; } }
+.man-notif { position: absolute; left: 8px; right: 8px; top: 10px; display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: 12px;
+  background: #f2f6f8f2; color: var(--azul); box-shadow: 0 8px 20px #0006; animation: man-notif 5s var(--ease) infinite; }
+.man-notif img { width: 30px; height: 30px; border-radius: 8px; flex: none; }
+.man-notif b { display: block; font: 600 11px/14px var(--text); }
+.man-notif span { display: block; font-size: 10px; line-height: 13px; color: #334155; }
+@keyframes man-notif { 0%, 35% { opacity: 0; transform: translateY(-70px); } 45%, 90% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-70px); } }
+
+/* ---------- Código de farmacia copiable y líneas del pedido ---------- */
+.cod-farmacia { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid #00b4d866; background: #00b4d81a; color: var(--ink); font: 600 13px/18px var(--mono); }
+.cod-farmacia small { font: 500 10px/14px var(--text); letter-spacing: .4px; text-transform: uppercase; color: var(--link); }
+.cod-farmacia svg { width: 14px; height: 14px; color: var(--link); }
+.cod-farmacia:hover { background: #00b4d833; }
+.cod-farmacia:active { transform: scale(.97); }
+.item-pedido { align-items: flex-start; }
+.cant-pedido { width: 76px; min-height: 42px; text-align: center; border-radius: 6px; border: 1px solid var(--hairline-strong);
+  background: var(--surface-strong); color: var(--ink); }
+.enlace.quitar { display: inline-flex; align-items: center; gap: 4px; color: var(--danger-text); font-size: 13px; }
+.enlace.quitar svg { width: 14px; height: 14px; }
