@@ -2,6 +2,13 @@
 
 Formato: versión, fecha y cambios agrupados en *Agregado*, *Cambiado* y *Corregido*.
 
+## [0.3.2] — 2026-10-29
+### Agregado
+- Filtro por sección en **Inventario → Productos** (se combina con *Bajo mínimo* y con la búsqueda).
+### Cambiado
+- Respaldo con IA: más margen de respuesta y poco razonamiento, para modelos que piensan antes de
+  responder (como NVIDIA Nemotron).
+
 ## [0.3.1] — 2026-10-29
 ### Agregado
 - Lista de secciones: en el producto la sección se elige de una lista (o se crea una nueva ahí mismo).

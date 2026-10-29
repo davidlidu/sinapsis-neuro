@@ -24,6 +24,7 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 @router.get("", summary="Listar o buscar productos")
 def listar(q: str = "", filtro: str = Query("todos", pattern="^(todos|bajo_minimo|qr)$"),
+           seccion: str | None = Query(None, description="Nombre exacto; vacío = sin sección"),
            limite: int = Query(50, le=500), desde: int = 0,
            _: Usuario = Depends(usuario_actual), db: Session = Depends(obtener_db)):
     consulta = select(Producto).where(Producto.activo.is_(True))
@@ -32,6 +33,8 @@ def listar(q: str = "", filtro: str = Query("todos", pattern="^(todos|bajo_minim
         consulta = consulta.where(or_(Producto.nombre_normalizado.like(n), Producto.referencia == c,
                                       Producto.seccion.ilike(f"%{q.strip()}%"),
                                       Producto.codigo_barras == c, Producto.codigo_qr == c))
+    if seccion is not None:
+        consulta = consulta.where(Producto.seccion == seccion.strip())
     if filtro == "bajo_minimo":
         consulta = consulta.where(Producto.cantidad_actual < Producto.stock_minimo)
     elif filtro == "qr":

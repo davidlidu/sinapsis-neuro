@@ -274,6 +274,7 @@ def test_secciones(c):
     sid = lista["Microbiología"]["id"]
     assert c.put(f"/api/secciones/{sid}", json={"nombre": "Hematología · Prueba"}).status_code == 400
     c.put(f"/api/secciones/{sid}", json={"nombre": "Microbiología · Medios"})
+    assert [p["id"] for p in c.get("/api/productos", params={"seccion": "Microbiología · Medios"}).json()] == [pid]
     assert c.get(f"/api/productos/{pid}").json()["seccion"] == "Microbiología · Medios"
     assert c.delete(f"/api/secciones/{sid}?mover_a=Hematología · Prueba").json()["ok"]
     assert c.get(f"/api/productos/{pid}").json()["seccion"] == "Hematología · Prueba"

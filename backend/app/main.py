@@ -19,7 +19,7 @@ from .services import secciones as svc_secciones
 from .services.notificaciones import ciclo_diario
 from .seguridad import asegurar_admin
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 log = logging.getLogger("sinapsis")
 
 

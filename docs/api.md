@@ -90,7 +90,7 @@ Ejemplo de respuesta de `/foto`:
 ## Secciones — `/api/secciones`
 | Método | Ruta | Qué hace |
 |---|---|---|
-| GET | `` | `[{id, nombre, productos}]` (productos activos de cada sección). |
+| GET | `` | `[{id, nombre, productos}]` (productos activos de cada sección). Para listar los productos de una: `GET /api/productos?seccion=<nombre>` (`seccion=` vacío = sin sección). |
 | POST | `` | Admin. `{nombre}`; 400 si ya existe (sin distinguir mayúsculas). |
 | PUT | `/{id}` | Admin. `{nombre}`; renombra y actualiza los productos que la usan. |
 | DELETE | `/{id}?mover_a=` | Admin. Sus productos pasan a `mover_a` (otra sección) o quedan sin sección. |

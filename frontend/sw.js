@@ -1,6 +1,6 @@
 /* Service worker de Sinapsis: guarda la interfaz para que abra rápido, se pueda instalar y reciba notificaciones.
  * Los datos (/api) siempre van al servidor: nunca se guardan en caché. */
-const VERSION = "sinapsis-v0.3.1";
+const VERSION = "sinapsis-v0.3.2";
 const ARCHIVOS = [
   "/", "/index.html", "/styles.css", "/app.js", "/manifest.webmanifest",
   "/assets/deersystems-isotipo.svg", "/assets/vendor/html5-qrcode.min.js",

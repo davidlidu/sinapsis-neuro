@@ -563,6 +563,7 @@ async function formProducto(p = null) {
 async function vistaInventario(params) {
   const pestana = params.get("ver") || "productos";
   const filtro = params.get("filtro") || "todos";
+  const seccion = params.get("seccion");  // null = todas; "" = sin sección
   const v = pintar({ activo: "inventario", contenido: `
     <div class="fila entre" style="padding-top:8px;align-items:flex-end"><div class="cabecera" style="padding:0"><p class="eyebrow">Inventario</p><h1>${pestana === "productos" ? "Productos" : "Vencimientos"}</h1></div>
       <button class="btn chico" id="exportar">${ico.descarga} Excel</button></div>
@@ -584,16 +585,29 @@ async function vistaInventario(params) {
   }
 
   c.innerHTML = `<div class="buscador">${ico.buscar}<input id="q" placeholder="Buscar por nombre, cód. farmacia o código de barras" autocomplete="off"></div>
-    <div class="segmentos">${[["todos", "Todos"], ["bajo_minimo", "Bajo mínimo"], ["qr", "Con etiqueta QR"]]
-      .map(([k, t]) => `<button data-filtro="${k}" class="${filtro === k ? "activo" : ""}">${t}</button>`).join("")}</div>
+    <div class="fila filtros-inventario"><select id="seccion" aria-label="Filtrar por sección"><option value="__todas">Todas las secciones</option></select>
+      <div class="segmentos">${[["todos", "Todos"], ["bajo_minimo", "Bajo mínimo"], ["qr", "Con etiqueta QR"]]
+      .map(([k, t]) => `<button data-filtro="${k}" class="${filtro === k ? "activo" : ""}">${t}</button>`).join("")}</div></div>
     <div id="productos">${esqueleto()}</div><button class="btn" id="mas" hidden>Cargar más</button>
     ${esAdmin() ? `<button class="btn" id="nuevo">${ico.sumar} Nuevo producto</button>` : ""}`;
-  $$("[data-filtro]", c).forEach((b) => (b.onclick = () => (location.hash = `#/inventario?filtro=${b.dataset.filtro}`)));
+  const irA = (cambios) => {
+    const u = new URLSearchParams({ filtro, ...(seccion !== null && { seccion }), ...cambios });
+    if (u.get("seccion") === "__todas") u.delete("seccion");
+    location.hash = `#/inventario?${u}`;
+  };
+  $$("[data-filtro]", c).forEach((b) => (b.onclick = () => irA({ filtro: b.dataset.filtro })));
+  api("/api/secciones").then((lista) => {
+    const sel = $("#seccion", c);
+    sel.insertAdjacentHTML("beforeend", lista.map((x) => `<option value="${esc(x.nombre)}">${esc(x.nombre)} (${num(x.productos)})</option>`).join("")
+      + '<option value="">Sin sección</option>');
+    sel.value = seccion ?? "__todas";
+    sel.onchange = () => irA({ seccion: sel.value });
+  });
   $("#nuevo", c)?.addEventListener("click", () => formProducto());
   let desde = 0, q = "";
   const cargar = async (reiniciar) => {
     if (reiniciar) desde = 0;
-    const lista = await api(`/api/productos?q=${encodeURIComponent(q)}&filtro=${filtro}&limite=50&desde=${desde}`);
+    const lista = await api(`/api/productos?q=${encodeURIComponent(q)}&filtro=${filtro}${seccion !== null ? `&seccion=${encodeURIComponent(seccion)}` : ""}&limite=50&desde=${desde}`);
     const html = lista.map((p) => `<a class="item" href="#/producto/${p.id}"><div class="cuerpo"><div class="titulo">${esc(p.nombre)}</div>
       <div class="sub">${esc(p.seccion || p.presentacion)} · Cód. <span class="mono">${esc(p.referencia)}</span></div></div>
       ${cifra(p)}</a>`).join("");

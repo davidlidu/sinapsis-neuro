@@ -358,3 +358,9 @@ ol.pasos b { color: var(--ink); }
   background: var(--surface-strong); color: var(--ink); }
 .enlace.quitar { display: inline-flex; align-items: center; gap: 4px; color: var(--danger-text); font-size: 13px; }
 .enlace.quitar svg { width: 14px; height: 14px; }
+
+/* ---------- Filtros del inventario ---------- */
+.filtros-inventario { gap: 8px; flex-wrap: wrap; align-items: stretch; }
+.filtros-inventario select { flex: 1 1 220px; min-height: 42px; padding: 8px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline-strong); background: var(--surface-strong); color: var(--ink); font: 500 14px var(--text); }
+.filtros-inventario .segmentos { flex: 2 1 320px; }

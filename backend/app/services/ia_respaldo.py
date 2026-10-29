@@ -72,8 +72,9 @@ def leer_con_ia(db: Session, contenido: bytes, usuario: str) -> dict:
                 },
                 json={
                     "model": modelo,
-                    "max_tokens": 200,
+                    "max_tokens": 1000,  # margen para modelos que razonan antes de responder
                     "temperature": 0,
+                    "reasoning": {"effort": "low", "exclude": True},  # los modelos sin razonamiento lo ignoran
                     "messages": [{
                         "role": "user",
                         "content": [
