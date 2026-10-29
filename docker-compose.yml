@@ -1,0 +1,19 @@
+# Sinapsis en el VPS. Ver docs/despliegue.md.
+services:
+  sinapsis:
+    build: .
+    image: deersystems/sinapsis:0.1.0
+    container_name: sinapsis
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./datos:/datos            # base de datos, PDF de pedidos y fotos
+    ports:
+      - "127.0.0.1:8040:8000"     # solo local: Nginx publica el sitio con HTTPS
+    # Límites para convivir con los demás proyectos del VPS.
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

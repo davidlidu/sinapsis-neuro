@@ -1,0 +1,10 @@
+datos/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/data/
+.venv/
+.sf/
+.DS_Store
+.claude/
