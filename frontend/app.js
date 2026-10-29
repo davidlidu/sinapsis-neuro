@@ -168,15 +168,71 @@ function pintar(opciones) {
   return $("#vista");
 }
 
+// Con una hoja abierta la página de fondo no se mueve (en iPhone overflow:hidden no basta: se fija el body).
+let scrollGuardado = 0;
+function bloquearScroll() {
+  if (document.body.classList.contains("con-hoja")) return;
+  scrollGuardado = window.scrollY;
+  document.body.style.top = `-${scrollGuardado}px`;
+  document.body.classList.add("con-hoja");
+}
+function desbloquearScroll() {
+  if (document.querySelector(".velo") || !document.body.classList.contains("con-hoja")) return;
+  document.body.classList.remove("con-hoja");
+  document.body.style.top = "";
+  window.scrollTo(0, scrollGuardado);
+}
+
 function hoja(html, { alCerrar } = {}) {
   const velo = document.createElement("div");
   velo.className = "velo";
-  velo.innerHTML = `<div class="hoja" role="dialog" aria-modal="true"><div class="asa"></div>${html}</div>`;
-  const cerrar = () => { velo.remove(); alCerrar?.(); };
-  velo.addEventListener("click", (e) => { if (e.target === velo || e.target.closest("[data-cerrar]")) cerrar(); });
+  velo.innerHTML = `<div class="hoja" role="dialog" aria-modal="true"><div class="asa" aria-hidden="true"></div>${html}</div>`;
+  const el = $(".hoja", velo);
+  let cerrada = false;
+  const cerrar = () => {
+    if (cerrada) return;
+    cerrada = true;
+    velo.remove(); desbloquearScroll(); alCerrar?.();
+  };
+  // Tocar fuera cierra; se exige que el toque empiece y termine en el velo (no al soltar una selección de texto).
+  let empezoFuera = false;
+  velo.addEventListener("pointerdown", (e) => { empezoFuera = e.target === velo; });
+  velo.addEventListener("click", (e) => {
+    if ((e.target === velo && empezoFuera) || e.target.closest("[data-cerrar]")) cerrar();
+  });
+  // Arrastrar la raya (o el borde superior de la hoja) hacia abajo la cierra.
+  const asa = $(".asa", el);
+  let inicioY = null, inicioT = 0, dy = 0;
+  asa.addEventListener("pointerdown", (e) => {
+    inicioY = e.clientY; inicioT = e.timeStamp; dy = 0;
+    try { asa.setPointerCapture(e.pointerId); } catch {}
+    el.style.transition = "none";
+  });
+  asa.addEventListener("pointermove", (e) => {
+    if (inicioY === null) return;
+    dy = Math.max(0, e.clientY - inicioY);
+    el.style.transform = `translateY(${dy}px)`;
+    velo.style.opacity = String(Math.max(0.4, 1 - dy / 400));
+  });
+  const soltar = (e) => {
+    if (inicioY === null) return;
+    const rapido = dy > 40 && dy / Math.max(1, e.timeStamp - inicioT) > 0.6;
+    inicioY = null;
+    el.style.transition = "transform .2s var(--ease)";
+    velo.style.transition = "opacity .2s";
+    if (dy > el.offsetHeight * 0.25 || dy > 140 || rapido) {
+      el.style.transform = "translateY(100%)"; velo.style.opacity = "0";
+      setTimeout(cerrar, 200);
+    } else {
+      el.style.transform = ""; velo.style.opacity = "";
+    }
+  };
+  asa.addEventListener("pointerup", soltar);
+  asa.addEventListener("pointercancel", soltar);
   document.body.appendChild(velo);
+  bloquearScroll();
   setTimeout(() => $("input:not([type=hidden]):not([type=file])", velo)?.focus(), 250);
-  return { el: $(".hoja", velo), cerrar };
+  return { el, cerrar };
 }
 
 function confirmar(titulo, texto, { boton = "Confirmar", peligro = false } = {}) {
@@ -1182,6 +1238,7 @@ function vistaManual(params) {
 async function render() {
   if (limpiarVista) { const l = limpiarVista; limpiarVista = null; await l(); }
   $$(".velo").forEach((x) => x.remove());
+  desbloquearScroll();
   if (!sesion.token) return vistaLogin();
   if (!sesion.usuario) {
     try { sesion.usuario = await api("/api/auth/yo"); } catch { return; }

@@ -99,13 +99,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn svg { width: 20px; height: 20px; flex: none; }
 .enlace { background: none; border: 0; color: var(--link); padding: 0; cursor: pointer; font: 500 14px var(--text); }
 
-.campo { display: flex; flex-direction: column; gap: 6px; }
+.campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.grid-2 > * { min-width: 0; }
 .campo label { font: 500 13px/18px var(--text); color: var(--body); }
 .campo input, .campo select, .campo textarea, .buscador input {
   width: 100%; min-height: 46px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--hairline-strong);
   background: var(--surface-strong); color: var(--ink); outline: none; transition: border-color .2s; }
 .campo input:focus, .campo select:focus, .buscador input:focus { border-color: var(--cian); box-shadow: 0 0 0 3px #00b4d833; }
 input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.8); }
+/* iPhone: el campo de fecha trae su propio ancho mínimo y se sale de la pantalla. */
+.campo input[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%;
+  text-align: left; line-height: 24px; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 .buscador { position: relative; }
 .buscador svg { position: absolute; left: 12px; top: 13px; width: 20px; height: 20px; color: var(--mute); }
 .buscador input { padding-left: 42px; }
@@ -167,10 +172,14 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.8); }
 /* Hoja inferior (modal) */
 .velo { position: fixed; inset: 0; z-index: 40; background: #02101799; display: flex; align-items: flex-end; justify-content: center; animation: aparecer .2s; }
 @keyframes aparecer { from { opacity: 0; } }
-.hoja { width: 100%; max-width: 720px; max-height: 92dvh; overflow-y: auto; background: var(--canvas-soft); border: 1px solid var(--hairline);
+body.con-hoja { position: fixed; left: 0; right: 0; overflow: hidden; }
+.hoja { width: 100%; max-width: 720px; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--canvas-soft); border: 1px solid var(--hairline);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); animation: subir .3s var(--ease); }
 @keyframes subir { from { transform: translateY(40px); } }
-.hoja .asa { width: 40px; height: 4px; border-radius: 2px; background: var(--hairline-strong); margin: -8px auto 12px; }
+/* La raya es la manija: zona táctil ancha y alta, sin que el navegador la tome como scroll. */
+.hoja .asa { position: relative; height: 28px; margin: -20px -16px 4px; touch-action: none; cursor: grab; }
+.hoja .asa::after { content: ""; position: absolute; left: 50%; top: 12px; width: 40px; height: 4px; margin-left: -20px;
+  border-radius: 2px; background: var(--hairline-strong); }
 
 .aviso { position: fixed; left: 50%; bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 50;
   max-width: calc(100% - 32px); padding: 12px 16px; border-radius: var(--radius-md); background: var(--ink); color: var(--azul);

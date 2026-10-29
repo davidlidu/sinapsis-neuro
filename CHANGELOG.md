@@ -2,6 +2,12 @@
 
 Formato: versión, fecha y cambios agrupados en *Agregado*, *Cambiado* y *Corregido*.
 
+## [0.3.3] — 2026-10-29
+### Corregido
+- Celular: los campos de fecha ya no se salen de la pantalla (iPhone).
+- Con una ventana emergente abierta, la página de fondo ya no se desplaza.
+- La ventana emergente se cierra al arrastrar la raya superior hacia abajo o al tocar fuera de ella.
+
 ## [0.3.2] — 2026-10-29
 ### Agregado
 - Filtro por sección en **Inventario → Productos** (se combina con *Bajo mínimo* y con la búsqueda).

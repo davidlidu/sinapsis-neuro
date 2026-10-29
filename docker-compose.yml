@@ -2,7 +2,7 @@
 services:
   sinapsis:
     build: .
-    image: deersystems/sinapsis:0.3.2
+    image: deersystems/sinapsis:0.3.3
     container_name: sinapsis
     restart: unless-stopped
     env_file: .env
